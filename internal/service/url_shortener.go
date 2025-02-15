@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/aboyadzhiev/snip/internal/model"
+	"github.com/aboyadzhiev/snip/internal/store"
 	"github.com/jxskiss/base62"
-	"sync/atomic"
 )
 
 type URLShortener interface {
@@ -15,11 +15,15 @@ type URLShortener interface {
 
 type urlShortener struct {
 	hostname string
-	sequence atomic.Int64
+	sequence store.ShortenedURLSequence
+	store    store.ShortenedURL
 }
 
-func (u *urlShortener) Shorten(_ context.Context, url string) (string, error) {
-	id := u.nextId()
+func (s *urlShortener) Shorten(ctx context.Context, url string) (string, error) {
+	id, err := s.sequence.NextId(ctx)
+	if err != nil {
+		return "", err
+	}
 	slug := string(base62.FormatInt(id))
 	shortenedURL := &model.ShortenedURL{
 		Id:          id,
@@ -27,21 +31,33 @@ func (u *urlShortener) Shorten(_ context.Context, url string) (string, error) {
 		OriginalURL: url,
 	}
 
-	return fmt.Sprintf("%s/%s", u.hostname, shortenedURL.Slug), nil
+	err = s.store.Save(ctx, shortenedURL)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s/%s", s.hostname, shortenedURL.Slug), nil
 }
 
-func (u *urlShortener) Resolve(_ context.Context, slug string) (string, error) {
-	//TODO implement me
-	panic("implement me")
+func (s *urlShortener) Resolve(ctx context.Context, slug string) (string, error) {
+	id, err := base62.ParseInt([]byte(slug))
+	if err != nil {
+		return "", err
+	}
+
+	shortenedURL, err := s.store.Find(ctx, id)
+	if err != nil {
+		return "", err
+	}
+
+	return shortenedURL.OriginalURL, nil
+
 }
 
-func (u *urlShortener) nextId() int64 {
-	return u.sequence.Add(1)
-}
-
-func NewURLShortener(hostname string) URLShortener {
+func NewURLShortener(hostname string, sequence store.ShortenedURLSequence, store store.ShortenedURL) URLShortener {
 	return &urlShortener{
 		hostname: hostname,
-		sequence: atomic.Int64{},
+		sequence: sequence,
+		store:    store,
 	}
 }

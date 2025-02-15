@@ -1,21 +1,26 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"github.com/aboyadzhiev/snip/internal/handler"
 	"github.com/aboyadzhiev/snip/internal/service"
+	"github.com/aboyadzhiev/snip/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
 	"github.com/go-playground/validator/v10"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/valkey-io/valkey-go"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -34,7 +39,7 @@ func main() {
 func run(
 	ctx context.Context,
 	args []string,
-	_ func(string) string,
+	getenv func(string) string,
 	_ io.Reader,
 	stdout, stderr io.Writer,
 ) error {
@@ -56,10 +61,24 @@ func run(
 		return err
 	}
 
+	db, err := initDB(ctx, getenv)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	valkeyClient, err := initValkeyClient(ctx, getenv)
+	if err != nil {
+		return err
+	}
+	defer valkeyClient.Close()
+
 	logger := slog.New(slog.NewJSONHandler(stdout, nil))
+
 	validate := initValidator()
-	hostname := "https://snap.it"
-	shortener, err := initURLShortener(logger, hostname)
+
+	hostname := strings.TrimSpace(getenv("SNIP_HOSTNAME"))
+	shortener, err := initURLShortener(logger, hostname, valkeyClient, db)
 	if err != nil {
 		return err
 	}
@@ -126,8 +145,15 @@ func NewServer(logger *slog.Logger, validate *validator.Validate, shortener serv
 }
 
 func addRoutes(r *chi.Mux, _ *slog.Logger, validate *validator.Validate, shortener service.URLShortener) {
-	r.Get("/api/v1/healthz", handler.Healthz())
-	r.Post("/api/v1/shortened-url", handler.ShortenURL(shortener, validate))
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/healthz", handler.Healthz())
+		r.Post("/shortened-url", handler.ShortenURL(shortener, validate))
+	})
+
+	r.Route("/{slug}", func(r chi.Router) {
+		r.Use(middleware.NoCache)
+		r.Get("/", handler.Resolve(shortener))
+	})
 
 	r.Handle("/", http.NotFoundHandler())
 }
@@ -145,8 +171,51 @@ func initValidator() *validator.Validate {
 	return validate
 }
 
-func initURLShortener(_ *slog.Logger, hostname string) (service.URLShortener, error) {
-	shortener := service.NewURLShortener(hostname)
+func initURLShortener(_ *slog.Logger, hostname string, valkeyClient valkey.Client, db *pgxpool.Pool) (service.URLShortener, error) {
+	sequence := store.NewShortenedURLSequence(valkeyClient)
+	shortenedURLStore := store.NewShortenedURL(db)
+	shortener := service.NewURLShortener(hostname, sequence, shortenedURLStore)
 
 	return shortener, nil
+}
+
+func initDB(ctx context.Context, getenv func(string) string) (*pgxpool.Pool, error) {
+	user := strings.TrimSpace(getenv("POSTGRES_USER"))
+	password, err := readSecretFile(getenv("POSTGRES_PASSWORD_FILE"))
+	if err != nil {
+		return nil, err
+	}
+	hostname := strings.TrimSpace(getenv("POSTGRES_HOST"))
+	database := strings.TrimSpace(getenv("POSTGRES_DB"))
+
+	url := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", user, password, hostname, database)
+	db, err := pgxpool.New(ctx, url)
+	if err != nil {
+		return nil, err
+	}
+	err = db.Ping(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func initValkeyClient(_ context.Context, getenv func(string) string) (valkey.Client, error) {
+	valkeyHosts := strings.Split(getenv("VALKEY_HOSTS"), ",")
+	valkeyClient, err := valkey.NewClient(valkey.ClientOption{InitAddress: valkeyHosts})
+	if err != nil {
+		return nil, err
+	}
+
+	return valkeyClient, nil
+}
+
+func readSecretFile(file string) (string, error) {
+	secret, err := os.ReadFile(filepath.Clean(file))
+	if err != nil {
+		return "", err
+	}
+
+	return string(bytes.TrimSpace(secret)), nil
 }

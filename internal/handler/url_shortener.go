@@ -37,6 +37,14 @@ func ShortenURL(shortener service.URLShortener, v *validator.Validate) http.Hand
 	}
 }
 
-func Resolve() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {}
+func Resolve(shortener service.URLShortener) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		slug := r.PathValue("slug")
+		url, err := shortener.Resolve(ctx, slug)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		http.Redirect(w, r, url, http.StatusFound)
+	}
 }

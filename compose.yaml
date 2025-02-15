@@ -1,0 +1,90 @@
+name: snip
+services:
+  api-server:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    develop:
+      watch:
+        - action: rebuild
+          path: "./internal"
+        - action: rebuild
+          path: "./cmd"
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+      valkey:
+        condition: service_healthy
+        restart: true
+    secrets:
+      - postgres-password
+      - valkey-password
+    environment:
+      - "SNIP_HOSTNAME=${SNIP_HOSTNAME}"
+      - "POSTGRES_HOST=${POSTGRES_HOST}"
+      - "POSTGRES_USER=${POSTGRES_USER}"
+      - "POSTGRES_DB=${POSTGRES_DB}"
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres-password
+      - "VALKEY_HOSTS=${VALKEY_HOSTS}"
+      - VALKEY_PASSWORD_FILE=/run/secrets/valkey-password
+    networks:
+      - snip
+    command: " -addr=:8081"
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: on-failure
+    healthcheck:
+      test: '[ $$(valkey-cli ping) = ''PONG'' ]'
+      start_period: 30s
+      timeout: 3s
+      interval: 1s
+      retries: 5
+    secrets:
+      - valkey-password
+    volumes:
+      - valkey:/data
+    command: "valkey-server --port 6379 --save 60 1 --loglevel warning"
+    expose:
+      - "6379"
+    networks:
+      - snip
+
+  db:
+    image: postgres:17
+    restart: on-failure
+    shm_size: 128mb
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 1m
+    secrets:
+      - postgres-password
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - snip
+    environment:
+      - "POSTGRES_USER=${POSTGRES_USER}"
+      - "POSTGRES_DB=${POSTGRES_DB}"
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres-password
+    expose:
+      - 5432
+    ports:
+      - "127.0.0.1:5432:5432"
+
+volumes:
+  db-data:
+  valkey:
+secrets:
+  valkey-password:
+    environment: "VALKEY_PASSWORD"
+  postgres-password:
+    environment: "POSTGRES_PASSWORD"
+networks:
+  snip:
