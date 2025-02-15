@@ -21,7 +21,6 @@ services:
         restart: true
     secrets:
       - postgres-password
-      - valkey-password
     environment:
       - "SNIP_HOSTNAME=${SNIP_HOSTNAME}"
       - "POSTGRES_HOST=${POSTGRES_HOST}"
@@ -29,7 +28,6 @@ services:
       - "POSTGRES_DB=${POSTGRES_DB}"
       - POSTGRES_PASSWORD_FILE=/run/secrets/postgres-password
       - "VALKEY_HOSTS=${VALKEY_HOSTS}"
-      - VALKEY_PASSWORD_FILE=/run/secrets/valkey-password
     networks:
       - snip
     command: " -addr=:8081"
@@ -43,8 +41,6 @@ services:
       timeout: 3s
       interval: 1s
       retries: 5
-    secrets:
-      - valkey-password
     volumes:
       - valkey:/data
     command: "valkey-server --port 6379 --save 60 1 --loglevel warning"
@@ -66,7 +62,7 @@ services:
     secrets:
       - postgres-password
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
     networks:
       - snip
     environment:
@@ -96,13 +92,11 @@ services:
       - caddy_config:/config
 
 volumes:
-  db-data:
+  db_data:
   valkey:
   caddy_data:
   caddy_config:
 secrets:
-  valkey-password:
-    environment: "VALKEY_PASSWORD"
   postgres-password:
     environment: "POSTGRES_PASSWORD"
 networks:
