@@ -6,14 +6,18 @@ import (
 	"flag"
 	"fmt"
 	"github.com/aboyadzhiev/snip/internal/handler"
+	"github.com/aboyadzhiev/snip/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
+	"github.com/go-playground/validator/v10"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"reflect"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -53,8 +57,14 @@ func run(
 	}
 
 	logger := slog.New(slog.NewJSONHandler(stdout, nil))
+	validate := initValidator()
+	hostname := "https://snap.it"
+	shortener, err := initURLShortener(logger, hostname)
+	if err != nil {
+		return err
+	}
 
-	srv := NewServer(logger)
+	srv := NewServer(logger, validate, shortener)
 
 	httpServer := &http.Server{
 		Addr:         *addr,
@@ -94,7 +104,7 @@ func run(
 	return nil
 }
 
-func NewServer(logger *slog.Logger) http.Handler {
+func NewServer(logger *slog.Logger, validate *validator.Validate, shortener service.URLShortener) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -108,15 +118,35 @@ func NewServer(logger *slog.Logger) http.Handler {
 	// TODO: Use the `middleware.NoCache` when redirecting the user to the original URL
 	// r.Use(middleware.NoCache)
 
-	addRoutes(r, logger)
+	addRoutes(r, logger, validate, shortener)
 
 	var httpHandler http.Handler = r
 
 	return httpHandler
 }
 
-func addRoutes(r *chi.Mux, _ *slog.Logger) {
-	r.Get("GET /api/v1/healthz", handler.Healthz())
+func addRoutes(r *chi.Mux, _ *slog.Logger, validate *validator.Validate, shortener service.URLShortener) {
+	r.Get("/api/v1/healthz", handler.Healthz())
+	r.Post("/api/v1/shortened-url", handler.ShortenURL(shortener, validate))
 
 	r.Handle("/", http.NotFoundHandler())
+}
+
+func initValidator() *validator.Validate {
+	validate := validator.New(validator.WithRequiredStructEnabled())
+	// register function to get tag name from json tags.
+	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		if name == "-" {
+			return ""
+		}
+		return name
+	})
+	return validate
+}
+
+func initURLShortener(_ *slog.Logger, hostname string) (service.URLShortener, error) {
+	shortener := service.NewURLShortener(hostname)
+
+	return shortener, nil
 }
