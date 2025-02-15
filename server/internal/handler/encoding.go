@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/aboyadzhiev/snip/internal/model"
+	"github.com/aboyadzhiev/snip/server/internal/model"
 	"github.com/go-playground/validator/v10"
 	"net/http"
 )

@@ -2,7 +2,7 @@ FROM golang:1.24.0 AS build-stage
 
 WORKDIR /go/src/snip
 
-COPY . .
+COPY .. .
 
 RUN go mod download
 RUN go vet ./...

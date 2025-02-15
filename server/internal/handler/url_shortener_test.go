@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/aboyadzhiev/snip/internal/model"
+	"github.com/aboyadzhiev/snip/server/internal/model"
 	"github.com/go-playground/validator/v10"
 	"net/http"
 	"net/http/httptest"

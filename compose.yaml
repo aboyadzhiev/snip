@@ -2,14 +2,14 @@ name: snip
 services:
   api-server:
     build:
-      dockerfile: Dockerfile
+      dockerfile: server/Dockerfile
       context: .
     develop:
       watch:
         - action: rebuild
-          path: "./internal"
+          path: "server/internal"
         - action: rebuild
-          path: "./cmd"
+          path: "server/cmd"
     ports:
       - "127.0.0.1:8081:8081"
     depends_on:
@@ -78,9 +78,28 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
 
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    networks:
+      - snip
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - $PWD/client/conf:/etc/caddy
+      - $PWD/client/site:/srv
+      - caddy_data:/data
+      - caddy_config:/config
+
 volumes:
   db-data:
   valkey:
+  caddy_data:
+  caddy_config:
 secrets:
   valkey-password:
     environment: "VALKEY_PASSWORD"

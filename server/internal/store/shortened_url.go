@@ -2,7 +2,7 @@ package store
 
 import (
 	"context"
-	"github.com/aboyadzhiev/snip/internal/model"
+	"github.com/aboyadzhiev/snip/server/internal/model"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

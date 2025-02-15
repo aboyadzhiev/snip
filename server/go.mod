@@ -1,4 +1,4 @@
-module github.com/aboyadzhiev/snip
+module github.com/aboyadzhiev/snip/server
 
 go 1.24.0
 

@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"github.com/aboyadzhiev/snip/internal/model"
-	"github.com/aboyadzhiev/snip/internal/service"
+	"github.com/aboyadzhiev/snip/server/internal/model"
+	"github.com/aboyadzhiev/snip/server/internal/service"
 	"github.com/go-playground/validator/v10"
 	"net/http"
 )

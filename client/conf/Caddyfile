@@ -1,0 +1,16 @@
+www.snip.local {
+    redir https://{host}{uri}
+}
+
+snip.local {
+    root * /srv/
+    file_server
+
+    @not-static {
+        not path /
+        not file
+    }
+    reverse_proxy @not-static api-server:8081
+
+    encode zstd gzip
+}

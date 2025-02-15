@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/aboyadzhiev/snip/internal/model"
-	"github.com/aboyadzhiev/snip/internal/store"
+	"github.com/aboyadzhiev/snip/server/internal/model"
+	"github.com/aboyadzhiev/snip/server/internal/store"
 	"github.com/jxskiss/base62"
 )
 
