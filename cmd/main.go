@@ -134,9 +134,6 @@ func NewServer(logger *slog.Logger, validate *validator.Validate, shortener serv
 	// Limit the max request body size to 1MB
 	r.Use(middleware.RequestSize(1_048_576))
 
-	// TODO: Use the `middleware.NoCache` when redirecting the user to the original URL
-	// r.Use(middleware.NoCache)
-
 	addRoutes(r, logger, validate, shortener)
 
 	var httpHandler http.Handler = r
