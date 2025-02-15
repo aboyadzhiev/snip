@@ -1,2 +1,2 @@
 # snip
-A lightweight URL URL shortener
+A lightweight URL shortener
