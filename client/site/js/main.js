@@ -25,14 +25,14 @@
                 longURLInput.value = url.value;
                 snipURLInput.value = responseBody.shortenURL;
                 snipURLAnchor.href = responseBody.shortenURL;
-
-                return true;
             }
+
+            return response.status;
         } catch (e) {
             console.error(e);
         }
 
-        return false;
+        return 500;
     }
 
     const appendAlert = (message, type) => {
@@ -50,6 +50,12 @@
 
     form.addEventListener('submit', (event) => {
         event.preventDefault();
+
+        const closeBtn = document.querySelector(".btn-close");
+        if (closeBtn !== null) {
+            closeBtn.click();
+        }
+
         const submitBtn = form.querySelector("#shorten-url");
         submitBtn.setAttribute('disabled', 'disabled');
 
@@ -65,18 +71,23 @@
         submitBtn.appendChild(loadingIndicator);
         submitBtn.appendChild(loadingTxt);
 
-        shortenURL().then((success) => {
-            if (success) {
+        shortenURL().then((statusCode) => {
+            if (statusCode >= 200 && statusCode < 300) {
                 form.classList.add("d-none");
-
                 resultTable.classList.remove("d-none");
 
                 appendAlert("Success! Your URL has been shortened. Thank you using our service!", "success");
+            } else if (statusCode >= 400 && statusCode < 500) {
+                let message = "Error! Only valid HTTP URLs are accepted for shortening."
+                if (statusCode === 406) {
+                    message = "Error! The URL you are trying to shorten has been identified as malicious."
+                }
+                appendAlert(message, "danger");
             } else {
                 form.classList.remove("d-none");
                 resultTable.classList.add("d-none");
 
-                appendAlert("Error! An unexpected error occurred while shortening your URL. Please try again later...", "danger");
+                appendAlert("Error! An unexpected error occurred while shortening your URL.", "danger");
             }
             submitBtn.removeChild(loadingTxt);
             submitBtn.removeChild(loadingIndicator);

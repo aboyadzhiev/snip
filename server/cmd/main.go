@@ -9,6 +9,7 @@ import (
 	"github.com/aboyadzhiev/snip/server/internal/handler"
 	"github.com/aboyadzhiev/snip/server/internal/service"
 	"github.com/aboyadzhiev/snip/server/internal/store"
+	"github.com/aboyadzhiev/snip/server/internal/urlhaus"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
@@ -77,8 +78,10 @@ func run(
 
 	validate := initValidator()
 
+	guardian := initURLGuardian(getenv, valkeyClient, logger)
+
 	hostname := strings.TrimSpace(getenv("SNIP_HOSTNAME"))
-	shortener, err := initURLShortener(logger, hostname, valkeyClient, db)
+	shortener, err := initURLShortener(logger, hostname, valkeyClient, db, guardian)
 	if err != nil {
 		return err
 	}
@@ -116,6 +119,29 @@ func run(
 			}
 		}
 		logger.Info("Shutdown completed")
+	}()
+
+	wg.Add(1)
+	ticker := time.NewTicker(3 * time.Minute)
+	go func() {
+		defer wg.Done()
+		logger.Info("Initializing guardian's database")
+		if err := guardian.UpdateDB(ctx); err != nil {
+			logger.Error("Error while initializing guardian's database", "error", err)
+		}
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				logger.Info("Stopped guardian's database update gorotine ...")
+				return
+			case <-ticker.C:
+				logger.Info("Updating guardian's database")
+				if err := guardian.UpdateDB(ctx); err != nil {
+					logger.Error("Error while updating guardian's database", "error", err)
+				}
+			}
+		}
 	}()
 
 	wg.Wait()
@@ -168,10 +194,10 @@ func initValidator() *validator.Validate {
 	return validate
 }
 
-func initURLShortener(_ *slog.Logger, hostname string, valkeyClient valkey.Client, db *pgxpool.Pool) (service.URLShortener, error) {
+func initURLShortener(_ *slog.Logger, hostname string, valkeyClient valkey.Client, db *pgxpool.Pool, guardian service.URLGuardian) (service.URLShortener, error) {
 	sequence := store.NewShortenedURLSequence(valkeyClient)
 	shortenedURLStore := store.NewShortenedURL(db)
-	shortener := service.NewURLShortener(hostname, sequence, shortenedURLStore)
+	shortener := service.NewURLShortener(hostname, sequence, shortenedURLStore, guardian)
 
 	return shortener, nil
 }
@@ -206,6 +232,20 @@ func initValkeyClient(_ context.Context, getenv func(string) string) (valkey.Cli
 	}
 
 	return valkeyClient, nil
+}
+
+func initURLGuardian(getenv func(string) string, valkeyClient valkey.Client, logger *slog.Logger) service.URLGuardian {
+	timeout := 5 * time.Second
+
+	httpClient := &http.Client{Timeout: timeout}
+
+	urlhausClient := urlhaus.NewClient(
+		strings.TrimSpace(getenv("URLHAUS_API_ENDPOINT")),
+		httpClient,
+		logger,
+	)
+
+	return service.NewURLGuardian(urlhausClient, valkeyClient, logger)
 }
 
 func readSecretFile(file string) (string, error) {

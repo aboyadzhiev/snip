@@ -1,0 +1,16 @@
+services:
+  api-server:
+    build:
+      dockerfile: Dev.Dockerfile
+      context: server
+    develop:
+      watch:
+        - action: rebuild
+          path: "server/internal"
+        - action: rebuild
+          path: "server/cmd"
+        - action: rebuild
+          path: "server/go.mod"
+        - action: rebuild
+          path: "server/go.sum"
+

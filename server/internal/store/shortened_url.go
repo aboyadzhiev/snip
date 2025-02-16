@@ -2,9 +2,13 @@ package store
 
 import (
 	"context"
+	"errors"
 	"github.com/aboyadzhiev/snip/server/internal/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var ErrShortenedURLNotFound = errors.New("shortened url not found")
 
 type ShortenedURL interface {
 	Find(ctx context.Context, id int64) (*model.ShortenedURL, error)
@@ -20,6 +24,9 @@ func (s *shortenedURLPG) Find(ctx context.Context, id int64) (*model.ShortenedUR
 	sql := "SELECT id, slug, original_url, created_at FROM url_map WHERE id = $1"
 	err := s.db.QueryRow(ctx, sql, id).Scan(&shortenedURL.Id, &shortenedURL.Slug, &shortenedURL.OriginalURL, &shortenedURL.CreatedAt)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrShortenedURLNotFound
+		}
 		return nil, err
 	}
 

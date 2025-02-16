@@ -2,14 +2,8 @@ name: snip
 services:
   api-server:
     build:
-      dockerfile: server/Dockerfile
-      context: .
-    develop:
-      watch:
-        - action: rebuild
-          path: "server/internal"
-        - action: rebuild
-          path: "server/cmd"
+      dockerfile: Dockerfile
+      context: server
     ports:
       - "127.0.0.1:8081:8081"
     depends_on:
@@ -28,6 +22,7 @@ services:
       - "POSTGRES_DB=${POSTGRES_DB}"
       - POSTGRES_PASSWORD_FILE=/run/secrets/postgres-password
       - "VALKEY_HOSTS=${VALKEY_HOSTS}"
+      - "URLHAUS_API_ENDPOINT=${URLHAUS_API_ENDPOINT}"
     networks:
       - snip
     command: " -addr=:8081"
@@ -74,7 +69,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
 
-  caddy:
+  client:
     image: caddy:2
     restart: unless-stopped
     networks:

@@ -2,11 +2,14 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/aboyadzhiev/snip/server/internal/model"
 	"github.com/aboyadzhiev/snip/server/internal/store"
 	"github.com/jxskiss/base62"
 )
+
+var ErrMaliciousURLDetected = errors.New("malicious URL detected")
 
 type URLShortener interface {
 	Shorten(ctx context.Context, url string) (string, error)
@@ -17,9 +20,19 @@ type urlShortener struct {
 	hostname string
 	sequence store.ShortenedURLSequence
 	store    store.ShortenedURL
+	guardian URLGuardian
 }
 
 func (s *urlShortener) Shorten(ctx context.Context, url string) (string, error) {
+	safeURL, err := s.guardian.SafeURL(ctx, url)
+	if err != nil {
+		return "", err
+	}
+
+	if !safeURL {
+		return "", ErrMaliciousURLDetected
+	}
+
 	id, err := s.sequence.NextId(ctx)
 	if err != nil {
 		return "", err
@@ -54,10 +67,11 @@ func (s *urlShortener) Resolve(ctx context.Context, slug string) (string, error)
 
 }
 
-func NewURLShortener(hostname string, sequence store.ShortenedURLSequence, store store.ShortenedURL) URLShortener {
+func NewURLShortener(hostname string, sequence store.ShortenedURLSequence, store store.ShortenedURL, guardian URLGuardian) URLShortener {
 	return &urlShortener{
 		hostname: hostname,
 		sequence: sequence,
 		store:    store,
+		guardian: guardian,
 	}
 }
