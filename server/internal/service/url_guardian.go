@@ -49,7 +49,7 @@ func (u *urlGuardian) UpdateDB(ctx context.Context) error {
 		}
 		diff := time.Since(lastUpdatedAtTime)
 		if diff < 5*time.Minute {
-			u.logger.WarnContext(ctx, "There are less that 5 minutes from the last update - skipping...")
+			u.logger.WarnContext(ctx, "The guardian's database has been update less that 5 minutes ago - skipping...")
 			return nil
 		}
 	}

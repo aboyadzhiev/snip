@@ -122,23 +122,23 @@ func run(
 	}()
 
 	wg.Add(1)
-	ticker := time.NewTicker(3 * time.Minute)
+	ticker := time.NewTicker(5 * time.Minute)
 	go func() {
 		defer wg.Done()
 		logger.Info("Initializing guardian's database")
 		if err := guardian.UpdateDB(ctx); err != nil {
-			logger.Error("Error while initializing guardian's database", "error", err)
+			logger.Error("Error while initializing guardian's database", "err", err)
 		}
 		for {
 			select {
 			case <-ctx.Done():
 				ticker.Stop()
-				logger.Info("Stopped guardian's database update gorotine ...")
+				logger.Info("The guardian's update database ticker has been stopped. ...")
 				return
 			case <-ticker.C:
 				logger.Info("Updating guardian's database")
 				if err := guardian.UpdateDB(ctx); err != nil {
-					logger.Error("Error while updating guardian's database", "error", err)
+					logger.Error("Error while updating guardian's database", "err", err)
 				}
 			}
 		}
