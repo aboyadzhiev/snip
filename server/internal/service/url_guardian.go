@@ -49,9 +49,9 @@ func (u *urlGuardian) UpdateDB(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		diff := time.Since(lastUpdatedAtTime)
-		if diff < 5*time.Minute {
-			u.logger.WarnContext(ctx, "The guardian's database has been update less that 5 minutes ago - skipping...")
+		elapsed := time.Since(lastUpdatedAtTime).Round(time.Minute)
+		if elapsed.Minutes() < 5 {
+			u.logger.WarnContext(ctx, fmt.Sprintf("The guardian's database has been updated %v ago (< 5m) - skipping..", elapsed))
 			return nil
 		}
 	}
