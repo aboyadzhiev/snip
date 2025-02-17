@@ -72,10 +72,6 @@ services:
   client:
     image: caddy:2
     restart: unless-stopped
-    depends_on:
-      api-server:
-        condition: service_started
-        restart: true
     networks:
       - snip
     cap_add:
