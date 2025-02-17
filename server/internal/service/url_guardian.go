@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"github.com/aboyadzhiev/snip/server/internal/urlhaus"
 	"github.com/valkey-io/valkey-go"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 )
 
 const maliciousURLsKey = "MaliciousURLs"
+const maliciousURLsRefreshedKey = "MaliciousURLsRefreshed"
 const maliciousURLsLastUpdatedAtKey = "MaliciousURLsLastUpdatedAt"
 
 type URLGuardian interface {
@@ -61,9 +63,24 @@ func (u *urlGuardian) UpdateDB(ctx context.Context) error {
 
 	for _, url := range urls {
 		u.valkeyClient.Do(ctx, u.valkeyClient.B().Sadd().Key(maliciousURLsKey).Member(url.URL).Build())
+		u.valkeyClient.Do(ctx, u.valkeyClient.B().Sadd().Key(maliciousURLsRefreshedKey).Member(url.URL).Build())
 	}
 
 	u.valkeyClient.Do(ctx, u.valkeyClient.B().Set().Key(maliciousURLsLastUpdatedAtKey).Value(time.Now().UTC().Format(time.RFC3339)).Build())
+
+	staleURLs, err := u.valkeyClient.Do(ctx, u.valkeyClient.B().Sdiff().Key(maliciousURLsKey, maliciousURLsRefreshedKey).Build()).AsStrSlice()
+	if err != nil {
+		u.logger.ErrorContext(ctx, "Error while determining stale URLs.", "err", err)
+		return err
+	}
+
+	// Cleanup stale URLs
+	for _, staleURL := range staleURLs {
+		u.valkeyClient.Do(ctx, u.valkeyClient.B().Srem().Key(maliciousURLsKey).Member(staleURL).Build())
+	}
+	u.logger.InfoContext(ctx, fmt.Sprintf("Deleted %d stale URLs.", len(staleURLs)))
+
+	u.valkeyClient.Do(ctx, u.valkeyClient.B().Del().Key(maliciousURLsRefreshedKey).Build())
 
 	return nil
 }
