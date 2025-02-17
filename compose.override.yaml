@@ -13,4 +13,4 @@ services:
           path: "server/go.mod"
         - action: rebuild
           path: "server/go.sum"
-
+    command: "go run cmd/main.go"

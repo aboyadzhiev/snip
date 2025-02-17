@@ -36,8 +36,8 @@ func ShortenURL(shortener service.URLShortener, v *validator.Validate) http.Hand
 			return
 		}
 
-		payload := model.ShortenURLRes{ShortenURL: slug}
-		if err = encode[model.ShortenURLRes](w, http.StatusCreated, payload, nil); err != nil {
+		payload := &model.ShortenURLRes{ShortenURL: slug}
+		if err = encode[*model.ShortenURLRes](w, http.StatusCreated, payload, nil); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -50,7 +50,7 @@ func Resolve(shortener service.URLShortener) http.HandlerFunc {
 		slug := r.PathValue("slug")
 		url, err := shortener.Resolve(ctx, slug)
 		if err != nil {
-			if errors.Is(err, store.ErrShortenedURLNotFound) {
+			if errors.Is(err, store.ErrShortenedURLNotFound) || errors.Is(err, service.ErrIllegalSlug) {
 				http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 				return
 			}

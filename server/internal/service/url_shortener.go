@@ -10,6 +10,7 @@ import (
 )
 
 var ErrMaliciousURLDetected = errors.New("malicious URL detected")
+var ErrIllegalSlug = errors.New("the given slug doesn't represent base62 encoded integer value")
 
 type URLShortener interface {
 	Shorten(ctx context.Context, url string) (string, error)
@@ -55,7 +56,7 @@ func (s *urlShortener) Shorten(ctx context.Context, url string) (string, error) 
 func (s *urlShortener) Resolve(ctx context.Context, slug string) (string, error) {
 	id, err := base62.ParseInt([]byte(slug))
 	if err != nil {
-		return "", err
+		return "", ErrIllegalSlug
 	}
 
 	shortenedURL, err := s.store.Find(ctx, id)
@@ -64,7 +65,6 @@ func (s *urlShortener) Resolve(ctx context.Context, slug string) (string, error)
 	}
 
 	return shortenedURL.OriginalURL, nil
-
 }
 
 func NewURLShortener(hostname string, sequence store.ShortenedURLSequence, store store.ShortenedURL, guardian URLGuardian) URLShortener {
